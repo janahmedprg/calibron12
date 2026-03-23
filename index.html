@@ -58,6 +58,9 @@
         <section class="panel controls-panel">
           <p class="section-kicker">Controls</p>
           <h2>Step Player</h2>
+          <div class="mode-chip">
+            <span id="modeText">Mode: Setup</span>
+          </div>
           <div class="controls-row">
             <button id="showStepsBtn" class="primary">Show DFS Steps</button>
             <button id="pauseBtn">Pause</button>
@@ -76,6 +79,22 @@
           <input id="timeline" type="range" min="0" max="0" value="0" />
           <p class="helper-text">
             The player shows an exact condensed DFS trace: local tries are animated, and deeper failed branches are summarized when the solver backtracks.
+          </p>
+        </section>
+
+        <section class="panel setup-panel">
+          <p class="section-kicker">Try It Yourself</p>
+          <h2>Manual Placement</h2>
+          <div class="setup-controls">
+            <label class="setup-field">
+              <span class="meta-label">Piece</span>
+              <select id="pieceSelect"></select>
+            </label>
+            <button id="rotateBtn">Rotate Piece</button>
+            <button id="clearSetupBtn">Clear Setup</button>
+          </div>
+          <p id="setupHint" class="helper-text">
+            Pick a remaining piece, click a top-left board cell to place it, or click an existing placed piece to remove it before solving.
           </p>
         </section>
 

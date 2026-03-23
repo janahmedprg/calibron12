@@ -269,6 +269,42 @@ button.primary,
   line-height: 1.6;
 }
 
+.mode-chip {
+  margin-top: 14px;
+}
+
+.mode-chip span {
+  display: inline-block;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(42, 127, 127, 0.12);
+  border: 1px solid rgba(42, 127, 127, 0.18);
+  color: var(--teal);
+  font-size: 0.9rem;
+}
+
+.setup-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, auto);
+  gap: 10px;
+  align-items: end;
+  margin-top: 18px;
+}
+
+.setup-field {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-field select {
+  width: 100%;
+  border: 1px solid rgba(92, 63, 33, 0.14);
+  border-radius: 16px;
+  background: var(--panel-strong);
+  color: var(--text);
+  padding: 12px 14px;
+}
+
 .meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -338,7 +374,8 @@ button.primary,
 
   .controls-row,
   .speed-grid,
-  .meta-grid {
+  .meta-grid,
+  .setup-controls {
     grid-template-columns: 1fr;
   }
 

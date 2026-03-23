@@ -38,6 +38,7 @@ const stepCounter = document.getElementById("stepCounter");
 const statusText = document.getElementById("statusText");
 const speedText = document.getElementById("speedText");
 const depthBadge = document.getElementById("depthBadge");
+const modeText = document.getElementById("modeText");
 const eventTitle = document.getElementById("eventTitle");
 const eventDescription = document.getElementById("eventDescription");
 const pieceMeta = document.getElementById("pieceMeta");
@@ -49,6 +50,10 @@ const timeline = document.getElementById("timeline");
 const showStepsBtn = document.getElementById("showStepsBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const resetBtn = document.getElementById("resetBtn");
+const pieceSelect = document.getElementById("pieceSelect");
+const rotateBtn = document.getElementById("rotateBtn");
+const clearSetupBtn = document.getElementById("clearSetupBtn");
+const setupHint = document.getElementById("setupHint");
 const speedButtons = [...document.querySelectorAll("#speedGrid button")];
 
 const boardState = Array.from({ length: PUZZLE.height }, () => Array(PUZZLE.width).fill(0));
@@ -60,6 +65,27 @@ let playbackDelay = 550;
 let isPlaying = false;
 let solutionFound = false;
 let solverStats = null;
+let selectedPieceId = 1;
+let selectedRotated = false;
+let setupState = createEmptySetupState();
+let traceBaseline = createEmptySetupState();
+let usingCustomSetup = false;
+
+function createEmptySetupState() {
+  return {
+    board: Array.from({ length: PUZZLE.height }, () => Array(PUZZLE.width).fill(0)),
+    placements: [],
+    placedPieces: Array(PUZZLE.pieces.length + 1).fill(false),
+  };
+}
+
+function cloneSetupState(state) {
+  return {
+    board: state.board.map((row) => [...row]),
+    placements: state.placements.map((placement) => ({ ...placement })),
+    placedPieces: [...state.placedPieces],
+  };
+}
 
 function buildBoard() {
   const fragment = document.createDocumentFragment();
@@ -78,6 +104,7 @@ function buildBoard() {
         cell.style.borderBottomWidth = "3px";
         cell.style.borderBottomColor = "rgba(83, 60, 38, 0.38)";
       }
+      cell.addEventListener("click", handleBoardClick);
       fragment.appendChild(cell);
       cellRow.push(cell);
     }
@@ -108,6 +135,14 @@ function clearPreviewClasses() {
   });
 }
 
+function syncBoardFrom(sourceBoard) {
+  for (let row = 0; row < PUZZLE.height; row += 1) {
+    for (let col = 0; col < PUZZLE.width; col += 1) {
+      boardState[row][col] = sourceBoard[row][col];
+    }
+  }
+}
+
 function markRegion(row, col, height, width, className) {
   for (let r = row; r < row + height; r += 1) {
     for (let c = col; c < col + width; c += 1) {
@@ -133,6 +168,69 @@ function syncBoard() {
       }
     }
   }
+}
+
+function getPlacementForCell(state, row, col) {
+  const id = state.board[row][col];
+  if (id === 0) {
+    return null;
+  }
+  return state.placements.find((placement) => {
+    const samePiece = Math.abs(placement.id) === id;
+    const inRow = row >= placement.row && row < placement.row + placement.height;
+    const inCol = col >= placement.col && col < placement.col + placement.width;
+    return samePiece && inRow && inCol;
+  }) ?? null;
+}
+
+function canPlaceOnBoard(board, row, col, id) {
+  const { height, width } = getFootprint(id);
+  if (row + height > PUZZLE.height || col + width > PUZZLE.width) {
+    return { canPlace: false, height, width };
+  }
+  for (let r = row; r < row + height; r += 1) {
+    for (let c = col; c < col + width; c += 1) {
+      if (board[r][c] !== 0) {
+        return { canPlace: false, height, width };
+      }
+    }
+  }
+  return { canPlace: true, height, width };
+}
+
+function placeIntoSetup(state, row, col, id) {
+  const probe = canPlaceOnBoard(state.board, row, col, id);
+  if (!probe.canPlace || state.placedPieces[Math.abs(id)]) {
+    return false;
+  }
+
+  for (let r = row; r < row + probe.height; r += 1) {
+    for (let c = col; c < col + probe.width; c += 1) {
+      state.board[r][c] = Math.abs(id);
+    }
+  }
+
+  state.placements.push({ id, row, col, height: probe.height, width: probe.width });
+  state.placedPieces[Math.abs(id)] = true;
+  return true;
+}
+
+function removeFromSetup(state, pieceNumber) {
+  const placementIndex = state.placements.findIndex((placement) => Math.abs(placement.id) === pieceNumber);
+  if (placementIndex === -1) {
+    return false;
+  }
+
+  const placement = state.placements[placementIndex];
+  for (let r = placement.row; r < placement.row + placement.height; r += 1) {
+    for (let c = placement.col; c < placement.col + placement.width; c += 1) {
+      state.board[r][c] = 0;
+    }
+  }
+
+  state.placements.splice(placementIndex, 1);
+  state.placedPieces[pieceNumber] = false;
+  return true;
 }
 
 function describeEvent(step) {
@@ -178,6 +276,55 @@ function describeEvent(step) {
         description: "The solver is exploring the search tree.",
       };
   }
+}
+
+function updatePiecePicker() {
+  pieceSelect.innerHTML = "";
+  for (let id = 1; id <= PUZZLE.pieces.length; id += 1) {
+    if (setupState.placedPieces[id]) {
+      continue;
+    }
+    const [height, width] = PUZZLE.pieces[id - 1];
+    const option = document.createElement("option");
+    option.value = String(id);
+    option.textContent = `Piece ${id} (${height}x${width})`;
+    if (id === selectedPieceId) {
+      option.selected = true;
+    }
+    pieceSelect.appendChild(option);
+  }
+
+  if (!pieceSelect.options.length) {
+    const option = document.createElement("option");
+    option.textContent = "All pieces placed";
+    option.value = "";
+    pieceSelect.appendChild(option);
+  } else if (![...pieceSelect.options].some((option) => Number(option.value) === selectedPieceId)) {
+    selectedPieceId = Number(pieceSelect.options[0].value);
+    pieceSelect.value = pieceSelect.options[0].value;
+  }
+}
+
+function updateSetupHint(message) {
+  const footprint = getFootprint(selectedRotated ? -selectedPieceId : selectedPieceId);
+  const orientation = selectedRotated ? "rotated" : "default";
+  setupHint.textContent = message ?? `Selected Piece ${selectedPieceId} in ${orientation} orientation (${footprint.height}x${footprint.width}). Click a top-left board cell to place it, or click a placed piece to remove it.`;
+}
+
+function refreshSetupUI(message) {
+  updatePiecePicker();
+  syncBoardFrom(setupState.board);
+  syncBoard();
+  clearPreviewClasses();
+  placedMeta.textContent = `${setupState.placements.length} / ${PUZZLE.pieces.length}`;
+  modeText.textContent = isPlaying ? "Mode: Playback" : "Mode: Setup";
+  updateSetupHint(message);
+}
+
+function restoreBaselineBoard() {
+  syncBoardFrom(traceBaseline.board);
+  syncBoard();
+  clearPreviewClasses();
 }
 
 function renderLog(activeIndex) {
@@ -273,6 +420,21 @@ function playNextStep() {
 }
 
 function startPlayback() {
+  if (!isPlaying) {
+    const generated = usingCustomSetup ? generateTraceFromSetup(setupState) : { trace: TRACE_DATA.trace, stats: TRACE_DATA.stats };
+    if (!generated.trace.length) {
+      statusText.textContent = "No solution from this setup";
+      eventTitle.textContent = "Dead end";
+      eventDescription.textContent = "The current manual placement blocks all remaining DFS branches. Remove or rotate a piece and try again.";
+      return;
+    }
+    trace = generated.trace;
+    solverStats = generated.stats;
+    traceBaseline = cloneSetupState(setupState);
+    timeline.max = trace.length;
+    stepCounter.textContent = `0 / ${trace.length}`;
+  }
+
   if (traceIndex >= trace.length) {
     resetPlayback();
   }
@@ -281,6 +443,7 @@ function startPlayback() {
   }
   isPlaying = true;
   speedText.textContent = `${playbackDelay}ms / step`;
+  modeText.textContent = "Mode: Playback";
   showStepsBtn.textContent = traceIndex === 0 ? "Playing DFS Steps" : "Resume DFS Steps";
   playNextStep();
 }
@@ -290,28 +453,25 @@ function pausePlayback() {
   window.clearTimeout(playbackTimer);
   speedText.textContent = solutionFound ? "Solved" : "Paused";
   showStepsBtn.textContent = traceIndex === 0 ? "Show DFS Steps" : "Resume DFS Steps";
+  modeText.textContent = "Mode: Setup";
 }
 
 function resetPlayback() {
   pausePlayback();
   traceIndex = 0;
   solutionFound = false;
-  for (let row = 0; row < PUZZLE.height; row += 1) {
-    boardState[row].fill(0);
-  }
-  syncBoard();
-  clearPreviewClasses();
+  restoreBaselineBoard();
   timeline.value = 0;
   stepCounter.textContent = `0 / ${trace.length}`;
   statusText.textContent = "Trace reset";
   speedText.textContent = "Paused";
   depthBadge.textContent = "Depth 0";
   eventTitle.textContent = "Ready to replay";
-  eventDescription.textContent = "Press the button to animate the full DFS search trace from the beginning.";
+  eventDescription.textContent = "Press the button to animate the DFS search from the current setup board.";
   pieceMeta.textContent = "-";
   positionMeta.textContent = "-";
   footprintMeta.textContent = "-";
-  placedMeta.textContent = `0 / ${PUZZLE.pieces.length}`;
+  placedMeta.textContent = `${traceBaseline.placements.length} / ${PUZZLE.pieces.length}`;
   renderLog(-1);
 }
 
@@ -320,13 +480,157 @@ function loadTrace() {
   return TRACE_DATA.trace;
 }
 
+function generateTraceFromSetup(initialState) {
+  const board = initialState.board.map((row) => [...row]);
+  const placedPieces = [...initialState.placedPieces];
+  const placedOrder = initialState.placements.map((placement) => ({ ...placement }));
+
+  const introStep = {
+    type: "start",
+    depth: placedOrder.length,
+    placedCount: placedOrder.length,
+  };
+
+  function makeStep(type, id, row, col, height, width, extra = {}) {
+    return {
+      type,
+      id,
+      row,
+      col,
+      height,
+      width,
+      depth: placedOrder.length,
+      placedCount: placedOrder.length,
+      ...extra,
+    };
+  }
+
+  function canPlace(row, col, id) {
+    return canPlaceOnBoard(board, row, col, id);
+  }
+
+  function placePiece(row, col, id, height, width) {
+    for (let r = row; r < row + height; r += 1) {
+      for (let c = col; c < col + width; c += 1) {
+        board[r][c] = Math.abs(id);
+      }
+    }
+    placedOrder.push({ id, row, col, height, width });
+    placedPieces[Math.abs(id)] = true;
+  }
+
+  function removeLastPiece() {
+    const last = placedOrder.pop();
+    for (let r = last.row; r < last.row + last.height; r += 1) {
+      for (let c = last.col; c < last.col + last.width; c += 1) {
+        board[r][c] = 0;
+      }
+    }
+    placedPieces[Math.abs(last.id)] = false;
+    return last;
+  }
+
+  function searchAt(xy) {
+    const localTrace = [];
+    let attempts = 0;
+    let placements = 0;
+    let backtracks = 0;
+
+    for (let i = 1; i < placedPieces.length; i += 1) {
+      if (placedPieces[i]) {
+        continue;
+      }
+
+      for (const id of [i, -i]) {
+        const probe = canPlace(xy.row, xy.col, id);
+        const tryStep = makeStep("try", id, xy.row, xy.col, probe.height, probe.width);
+        attempts += 1;
+
+        if (!probe.canPlace) {
+          localTrace.push(tryStep, makeStep("reject", id, xy.row, xy.col, probe.height, probe.width));
+          continue;
+        }
+
+        placePiece(xy.row, xy.col, id, probe.height, probe.width);
+        placements += 1;
+
+        const placeStep = {
+          type: "place",
+          id,
+          row: xy.row,
+          col: xy.col,
+          height: probe.height,
+          width: probe.width,
+          depth: placedOrder.length,
+          placedCount: placedOrder.length,
+        };
+
+        if (placedOrder.length === PUZZLE.pieces.length) {
+          return {
+            success: true,
+            trace: [...localTrace, tryStep, placeStep, { type: "solution", depth: placedOrder.length, placedCount: placedOrder.length }],
+            attempts,
+            placements,
+            backtracks,
+          };
+        }
+
+        const child = searchAt(getNextEmptyPos(board));
+        attempts += child.attempts;
+        placements += child.placements;
+        backtracks += child.backtracks;
+
+        if (child.success) {
+          return {
+            success: true,
+            trace: [...localTrace, tryStep, placeStep, ...child.trace],
+            attempts,
+            placements,
+            backtracks,
+          };
+        }
+
+        const removed = removeLastPiece();
+        backtracks += 1;
+        localTrace.push(
+          tryStep,
+          placeStep,
+          makeStep("remove", removed.id, removed.row, removed.col, removed.height, removed.width, {
+            exploredAttempts: child.attempts,
+            exploredPlacements: child.placements,
+            exploredBacktracks: child.backtracks + 1,
+          }),
+        );
+      }
+    }
+
+    return { success: false, trace: [], attempts, placements, backtracks };
+  }
+
+  if (placedOrder.length === PUZZLE.pieces.length) {
+    return {
+      trace: [introStep, { type: "solution", depth: placedOrder.length, placedCount: placedOrder.length }],
+      stats: { attempts: 0, placements: placedOrder.length, backtracks: 0 },
+    };
+  }
+
+  const result = searchAt(getNextEmptyPos(board));
+  if (!result.success) {
+    return {
+      trace: [],
+      stats: { attempts: result.attempts, placements: result.placements, backtracks: result.backtracks },
+    };
+  }
+
+  return {
+    trace: [introStep, ...result.trace],
+    stats: { attempts: result.attempts, placements: result.placements, backtracks: result.backtracks },
+  };
+}
+
 function jumpToStep(targetIndex) {
   pausePlayback();
-  for (let row = 0; row < PUZZLE.height; row += 1) {
-    boardState[row].fill(0);
-  }
-  syncBoard();
-  clearPreviewClasses();
+  restoreBaselineBoard();
 
   traceIndex = 0;
   for (let i = 0; i < targetIndex; i += 1) {
@@ -340,10 +644,67 @@ function jumpToStep(targetIndex) {
   }
 }
 
+function handleBoardClick(event) {
+  if (isPlaying) {
+    return;
+  }
+
+  if (traceIndex !== 0) {
+    updateSetupHint("Reset the playback before editing the board setup.");
+    return;
+  }
+
+  const row = Number(event.currentTarget.dataset.row);
+  const col = Number(event.currentTarget.dataset.col);
+  const existingPlacement = getPlacementForCell(setupState, row, col);
+
+  if (existingPlacement) {
+    removeFromSetup(setupState, Math.abs(existingPlacement.id));
+    usingCustomSetup = setupState.placements.length > 0;
+    traceBaseline = cloneSetupState(setupState);
+    refreshSetupUI(`Removed Piece ${Math.abs(existingPlacement.id)} from the setup board.`);
+    return;
+  }
+
+  if (!pieceSelect.value) {
+    updateSetupHint("All pieces are already on the board. Remove one to keep editing.");
+    return;
+  }
+
+  const id = selectedRotated ? -selectedPieceId : selectedPieceId;
+  if (!placeIntoSetup(setupState, row, col, id)) {
+    updateSetupHint(`Piece ${selectedPieceId} cannot be placed with its top-left corner at (${row}, ${col}).`);
+    return;
+  }
+
+  usingCustomSetup = true;
+  traceBaseline = cloneSetupState(setupState);
+  refreshSetupUI(`Placed Piece ${selectedPieceId}${selectedRotated ? " rotated" : ""} at (${row}, ${col}).`);
+}
+
 function bindEvents() {
   showStepsBtn.addEventListener("click", startPlayback);
   pauseBtn.addEventListener("click", pausePlayback);
   resetBtn.addEventListener("click", resetPlayback);
+  pieceSelect.addEventListener("change", (event) => {
+    selectedPieceId = Number(event.target.value || 1);
+    updateSetupHint();
+  });
+  rotateBtn.addEventListener("click", () => {
+    selectedRotated = !selectedRotated;
+    updateSetupHint();
+  });
+  clearSetupBtn.addEventListener("click", () => {
+    pausePlayback();
+    setupState = createEmptySetupState();
+    traceBaseline = cloneSetupState(setupState);
+    usingCustomSetup = false;
+    trace = loadTrace();
+    timeline.max = trace.length;
+    traceIndex = 0;
+    refreshSetupUI("Manual setup cleared. You are back to the empty board.");
+    resetPlayback();
+  });
 
   speedButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -362,11 +723,13 @@ function bindEvents() {
 function init() {
   buildBoard();
   trace = loadTrace();
+  traceBaseline = cloneSetupState(setupState);
   timeline.max = trace.length;
   stepCounter.textContent = `0 / ${trace.length}`;
   statusText.textContent = `Trace computed (${solverStats.attempts.toLocaleString()} attempts)`;
   eventTitle.textContent = "Ready to replay";
-  eventDescription.textContent = "Press the button to animate the condensed DFS search from the initial empty board.";
+  eventDescription.textContent = "Place pieces manually, or press the button to animate the condensed DFS search from the current board.";
+  refreshSetupUI();
   renderLog(-1);
   bindEvents();
 }
