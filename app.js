@@ -50,6 +50,7 @@ const timeline = document.getElementById("timeline");
 const showStepsBtn = document.getElementById("showStepsBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const resetBtn = document.getElementById("resetBtn");
+const pieceTray = document.getElementById("pieceTray");
 const pieceSelect = document.getElementById("pieceSelect");
 const rotateBtn = document.getElementById("rotateBtn");
 const clearSetupBtn = document.getElementById("clearSetupBtn");
@@ -70,6 +71,7 @@ let selectedRotated = false;
 let setupState = createEmptySetupState();
 let traceBaseline = createEmptySetupState();
 let usingCustomSetup = false;
+let draggedPieceId = null;
 
 function createEmptySetupState() {
   return {
@@ -105,6 +107,9 @@ function buildBoard() {
         cell.style.borderBottomColor = "rgba(83, 60, 38, 0.38)";
       }
       cell.addEventListener("click", handleBoardClick);
+      cell.addEventListener("dragover", handleBoardDragOver);
+      cell.addEventListener("dragleave", handleBoardDragLeave);
+      cell.addEventListener("drop", handleBoardDrop);
       fragment.appendChild(cell);
       cellRow.push(cell);
     }
@@ -132,6 +137,7 @@ function getNextEmptyPos(board) {
 function clearPreviewClasses() {
   cells.flat().forEach((cell) => {
     cell.classList.remove("trying", "rejected", "removing");
+    cell.classList.remove("drop-target", "drop-invalid");
   });
 }
 
@@ -305,6 +311,79 @@ function updatePiecePicker() {
   }
 }
 
+function renderPieceTray() {
+  pieceTray.innerHTML = "";
+
+  for (let id = 1; id <= PUZZLE.pieces.length; id += 1) {
+    if (setupState.placedPieces[id]) {
+      continue;
+    }
+
+    const [baseHeight, baseWidth] = PUZZLE.pieces[id - 1];
+    const previewHeight = selectedPieceId === id && selectedRotated ? baseWidth : baseHeight;
+    const previewWidth = selectedPieceId === id && selectedRotated ? baseHeight : baseWidth;
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "piece-chip";
+    chip.draggable = true;
+    chip.dataset.pieceId = String(id);
+    chip.style.color = PUZZLE.colors[id - 1];
+
+    if (id === selectedPieceId) {
+      chip.classList.add("selected");
+    }
+
+    chip.innerHTML = `
+      <div class="piece-chip-label">
+        <strong>P${id}</strong>
+        <span>${previewHeight}x${previewWidth}</span>
+      </div>
+    `;
+
+    const preview = document.createElement("div");
+    preview.className = "piece-chip-preview";
+    preview.style.gridTemplateColumns = `repeat(${Math.min(previewWidth, 8)}, 8px)`;
+
+    const rows = Math.min(previewHeight, 8);
+    const cols = Math.min(previewWidth, 8);
+    for (let index = 0; index < rows * cols; index += 1) {
+      preview.appendChild(document.createElement("span"));
+    }
+    chip.appendChild(preview);
+
+    chip.addEventListener("click", () => {
+      selectedPieceId = id;
+      pieceSelect.value = String(id);
+      renderPieceTray();
+      updateSetupHint();
+    });
+
+    chip.addEventListener("dragstart", (event) => {
+      if (traceIndex !== 0 || isPlaying) {
+        event.preventDefault();
+        return;
+      }
+      draggedPieceId = id;
+      selectedPieceId = id;
+      pieceSelect.value = String(id);
+      chip.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(id));
+      renderPieceTray();
+      updateSetupHint(`Dragging Piece ${id}${selectedRotated ? " rotated" : ""}. Drop it on a top-left board cell.`);
+    });
+
+    chip.addEventListener("dragend", () => {
+      draggedPieceId = null;
+      chip.classList.remove("dragging");
+      clearPreviewClasses();
+      updateSetupHint();
+    });
+
+    pieceTray.appendChild(chip);
+  }
+}
+
 function updateSetupHint(message) {
   const footprint = getFootprint(selectedRotated ? -selectedPieceId : selectedPieceId);
   const orientation = selectedRotated ? "rotated" : "default";
@@ -313,6 +392,7 @@ function updateSetupHint(message) {
 
 function refreshSetupUI(message) {
   updatePiecePicker();
+  renderPieceTray();
   syncBoardFrom(setupState.board);
   syncBoard();
   clearPreviewClasses();
@@ -325,6 +405,28 @@ function restoreBaselineBoard() {
   syncBoardFrom(traceBaseline.board);
   syncBoard();
   clearPreviewClasses();
+}
+
+function getCurrentPlacementId() {
+  return selectedRotated ? -selectedPieceId : selectedPieceId;
+}
+
+function tryPlaceSelectedPiece(row, col) {
+  if (!pieceSelect.value) {
+    updateSetupHint("All pieces are already on the board. Remove one to keep editing.");
+    return false;
+  }
+
+  const id = getCurrentPlacementId();
+  if (!placeIntoSetup(setupState, row, col, id)) {
+    updateSetupHint(`Piece ${selectedPieceId} cannot be placed with its top-left corner at (${row}, ${col}).`);
+    return false;
+  }
+
+  usingCustomSetup = true;
+  traceBaseline = cloneSetupState(setupState);
+  refreshSetupUI(`Placed Piece ${selectedPieceId}${selectedRotated ? " rotated" : ""} at (${row}, ${col}).`);
+  return true;
 }
 
 function renderLog(activeIndex) {
@@ -666,20 +768,40 @@ function handleBoardClick(event) {
     return;
   }
 
-  if (!pieceSelect.value) {
-    updateSetupHint("All pieces are already on the board. Remove one to keep editing.");
+  tryPlaceSelectedPiece(row, col);
+}
+
+function handleBoardDragOver(event) {
+  if (traceIndex !== 0 || isPlaying || draggedPieceId === null) {
     return;
   }
 
-  const id = selectedRotated ? -selectedPieceId : selectedPieceId;
-  if (!placeIntoSetup(setupState, row, col, id)) {
-    updateSetupHint(`Piece ${selectedPieceId} cannot be placed with its top-left corner at (${row}, ${col}).`);
+  event.preventDefault();
+  const row = Number(event.currentTarget.dataset.row);
+  const col = Number(event.currentTarget.dataset.col);
+  const id = getCurrentPlacementId();
+  const probe = canPlaceOnBoard(setupState.board, row, col, id);
+
+  clearPreviewClasses();
+  markRegion(row, col, probe.height, probe.width, probe.canPlace ? "drop-target" : "drop-invalid");
+}
+
+function handleBoardDragLeave() {
+  clearPreviewClasses();
+}
+
+function handleBoardDrop(event) {
+  if (traceIndex !== 0 || isPlaying || draggedPieceId === null) {
     return;
   }
 
-  usingCustomSetup = true;
-  traceBaseline = cloneSetupState(setupState);
-  refreshSetupUI(`Placed Piece ${selectedPieceId}${selectedRotated ? " rotated" : ""} at (${row}, ${col}).`);
+  event.preventDefault();
+  clearPreviewClasses();
+
+  const row = Number(event.currentTarget.dataset.row);
+  const col = Number(event.currentTarget.dataset.col);
+  tryPlaceSelectedPiece(row, col);
+  draggedPieceId = null;
 }
 
 function bindEvents() {
@@ -688,10 +810,12 @@ function bindEvents() {
   resetBtn.addEventListener("click", resetPlayback);
   pieceSelect.addEventListener("change", (event) => {
     selectedPieceId = Number(event.target.value || 1);
+    renderPieceTray();
     updateSetupHint();
   });
   rotateBtn.addEventListener("click", () => {
     selectedRotated = !selectedRotated;
+    renderPieceTray();
     updateSetupHint();
   });
   clearSetupBtn.addEventListener("click", () => {
