@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calibron 12 Solver Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Calibron 12</p>
+        <h1>Backtracking DFS, made visible.</h1>
+        <p class="intro">
+          This interface solves the 56x56 rectangle using the same piece order and rotation logic as the
+          provided solver, then animates a condensed branch-by-branch DFS trace with real rejections, placements,
+          and backtracks on the path to the solution.
+        </p>
+      </div>
+      <div class="hero-panel">
+        <div class="stat-card">
+          <span class="stat-label">Current Step</span>
+          <strong id="stepCounter">0 / 0</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Search Status</span>
+          <strong id="statusText">Preparing trace...</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Playback</span>
+          <strong id="speedText">Paused</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="board-section panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Animated Board</p>
+            <h2>56 x 56 puzzle grid</h2>
+          </div>
+          <div class="board-badge">
+            <span>12 pieces</span>
+            <span id="depthBadge">Depth 0</span>
+          </div>
+        </div>
+        <div class="board-wrap">
+          <div class="board" id="board" aria-label="Calibron 12 puzzle board"></div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel controls-panel">
+          <p class="section-kicker">Controls</p>
+          <h2>Step Player</h2>
+          <div class="controls-row">
+            <button id="showStepsBtn" class="primary">Show DFS Steps</button>
+            <button id="pauseBtn">Pause</button>
+            <button id="resetBtn">Reset</button>
+          </div>
+          <div class="speed-block">
+            <span class="speed-title">Playback Speed</span>
+            <div class="speed-grid" id="speedGrid">
+              <button data-speed="1400">1x Slow</button>
+              <button data-speed="900">2x</button>
+              <button data-speed="550" class="active">3x</button>
+              <button data-speed="280">4x</button>
+              <button data-speed="120">5x Fast</button>
+            </div>
+          </div>
+          <input id="timeline" type="range" min="0" max="0" value="0" />
+          <p class="helper-text">
+            The player shows an exact condensed DFS trace: local tries are animated, and deeper failed branches are summarized when the solver backtracks.
+          </p>
+        </section>
+
+        <section class="panel detail-panel">
+          <p class="section-kicker">Current Move</p>
+          <h2 id="eventTitle">Waiting for trace</h2>
+          <p id="eventDescription" class="event-description">
+            The browser is computing the DFS trace from the original piece list.
+          </p>
+          <div class="meta-grid">
+            <div>
+              <span class="meta-label">Piece</span>
+              <strong id="pieceMeta">-</strong>
+            </div>
+            <div>
+              <span class="meta-label">Position</span>
+              <strong id="positionMeta">-</strong>
+            </div>
+            <div>
+              <span class="meta-label">Footprint</span>
+              <strong id="footprintMeta">-</strong>
+            </div>
+            <div>
+              <span class="meta-label">Placed</span>
+              <strong id="placedMeta">0 / 12</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel log-panel">
+          <p class="section-kicker">Recent Trace</p>
+          <h2>DFS Event Feed</h2>
+          <ol id="eventLog" class="event-log"></ol>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
