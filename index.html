@@ -15,62 +15,80 @@
   </head>
   <body>
     <div class="page-shell">
-      <header class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Calibron 12</p>
-          <p class="intro">
-            This interface solves the 56x56 rectangle using the same piece order
-            and rotation logic as the provided solver, then animates a condensed
-            branch-by-branch DFS trace with real rejections, placements, and
-            backtracks on the path to the solution.
-          </p>
-        </div>
-        <div class="hero-panel">
-          <div class="stat-card">
-            <span class="stat-label">Current Step</span>
-            <strong id="stepCounter">0 / 0</strong>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Search Status</span>
-            <strong id="statusText">Preparing trace...</strong>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Playback</span>
-            <strong id="speedText">Paused</strong>
-          </div>
-        </div>
-      </header>
-
       <main class="layout">
-        <section class="board-section panel">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">Animated Board</p>
-              <h2>56 x 56 puzzle grid</h2>
+        <div class="board-column">
+          <section class="board-section panel">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker">Animated Board</p>
+                <h2>56 x 56 puzzle grid</h2>
+              </div>
+              <div class="board-badge">
+                <span>12 pieces</span>
+                <span id="depthBadge">Depth 0</span>
+              </div>
             </div>
-            <div class="board-badge">
-              <span>12 pieces</span>
-              <span id="depthBadge">Depth 0</span>
+            <div class="board-wrap">
+              <div
+                class="board"
+                id="board"
+                aria-label="Calibron 12 puzzle board"
+              ></div>
             </div>
-          </div>
-          <div class="board-wrap">
+          </section>
+
+          <section class="panel setup-panel">
+            <p class="section-kicker">Try It Yourself</p>
+            <h2>Manual Placement</h2>
             <div
-              class="board"
-              id="board"
-              aria-label="Calibron 12 puzzle board"
+              id="pieceTray"
+              class="piece-tray"
+              aria-label="Available puzzle pieces"
             ></div>
-          </div>
-        </section>
+            <ul class="setup-tips">
+              <li>Click a piece, then click the board to place it.</li>
+              <li>Drag a piece from the tray and drop it on the board.</li>
+              <li>Right-click a piece to rotate it.</li>
+              <li>Use the arrow keys to move a selected placed piece.</li>
+              <li>Press Delete to remove a selected placed piece.</li>
+            </ul>
+            <div class="setup-controls">
+              <label class="setup-field">
+                <span class="meta-label">Piece</span>
+                <select id="pieceSelect"></select>
+              </label>
+              <button id="rotateBtn">Rotate Piece</button>
+              <button id="clearSetupBtn">Clear Setup</button>
+            </div>
+            <p id="setupHint" class="helper-text">
+              Pick a remaining piece, click or drag it onto a top-left board
+              cell to place it, right-click to rotate it, and click away to
+              clear a placed-piece selection.
+            </p>
+          </section>
+        </div>
 
         <aside class="sidebar">
           <section class="panel controls-panel">
-            <p class="section-kicker">Controls</p>
-            <h2>Step Player</h2>
-            <div class="mode-chip">
-              <span id="modeText">Mode: Setup</span>
+            <p class="section-kicker">Calibron 12</p>
+            <h2>Solution using DFS + Backtracking</h2>
+            <span id="modeText" hidden>Mode: Setup</span>
+            <div class="hero-panel">
+              <div class="stat-card">
+                <span class="stat-label">Current Step</span>
+                <strong id="stepCounter">0 / 0</strong>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Search Status</span>
+                <strong id="statusText">Preparing trace...</strong>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Playback</span>
+                <strong id="speedText">Paused</strong>
+              </div>
             </div>
             <div class="controls-row">
-              <button id="showStepsBtn" class="primary">Show DFS Steps</button>
+              <button id="showStepsBtn">Show DFS Steps</button>
               <button id="pauseBtn">Pause</button>
               <button id="resetBtn">Reset</button>
             </div>
@@ -86,31 +104,9 @@
             </div>
             <input id="timeline" type="range" min="0" max="0" value="0" />
             <p class="helper-text">
-              The player shows an exact condensed DFS trace: local tries are
+              The solver shows an exact condensed DFS trace: local tries are
               animated, and deeper failed branches are summarized when the
               solver backtracks.
-            </p>
-          </section>
-
-          <section class="panel setup-panel">
-            <p class="section-kicker">Try It Yourself</p>
-            <h2>Manual Placement</h2>
-            <div
-              id="pieceTray"
-              class="piece-tray"
-              aria-label="Available puzzle pieces"
-            ></div>
-            <div class="setup-controls">
-              <label class="setup-field">
-                <span class="meta-label">Piece</span>
-                <select id="pieceSelect"></select>
-              </label>
-              <button id="rotateBtn">Rotate Piece</button>
-              <button id="clearSetupBtn">Clear Setup</button>
-            </div>
-            <p id="setupHint" class="helper-text">
-              Pick a remaining piece, click a top-left board cell to place it,
-              or click an existing placed piece to remove it before solving.
             </p>
           </section>
 

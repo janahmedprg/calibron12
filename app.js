@@ -1483,6 +1483,7 @@ let playbackTimer = null;
 let playbackDelay = 550;
 let isPlaying = false;
 let solutionFound = false;
+let playbackTouched = false;
 let solverStats = null;
 let selectedPieceId = 1;
 let selectedRotated = false;
@@ -1528,6 +1529,7 @@ function buildBoard() {
         cell.style.borderBottomColor = "rgba(83, 60, 38, 0.38)";
       }
       cell.addEventListener("click", handleBoardClick);
+      cell.addEventListener("contextmenu", handleBoardContextMenu);
       cell.addEventListener("dragover", handleBoardDragOver);
       cell.addEventListener("dragleave", handleBoardDragLeave);
       cell.addEventListener("drop", handleBoardDrop);
@@ -1732,6 +1734,42 @@ function movePlacedPiece(state, pieceNumber, row, col) {
   return true;
 }
 
+function rotatePlacedPiece(state, pieceNumber) {
+  const placement = getPlacementByPiece(state, pieceNumber);
+  if (!placement) {
+    return false;
+  }
+
+  const nextId = -placement.id;
+  const probe = canPlacePlacementAt(
+    state,
+    { ...placement, id: nextId },
+    placement.row,
+    placement.col,
+  );
+  if (!probe.canPlace) {
+    return false;
+  }
+
+  for (let r = placement.row; r < placement.row + placement.height; r += 1) {
+    for (let c = placement.col; c < placement.col + placement.width; c += 1) {
+      state.board[r][c] = 0;
+    }
+  }
+
+  placement.id = nextId;
+  placement.height = probe.height;
+  placement.width = probe.width;
+
+  for (let r = placement.row; r < placement.row + placement.height; r += 1) {
+    for (let c = placement.col; c < placement.col + placement.width; c += 1) {
+      state.board[r][c] = pieceNumber;
+    }
+  }
+
+  return true;
+}
+
 function describeEvent(step) {
   const pieceText = step.id
     ? `Piece ${Math.abs(step.id)}${step.id < 0 ? " rotated" : ""}`
@@ -1862,6 +1900,19 @@ function renderPieceTray() {
       updateSetupHint();
     });
 
+    chip.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      clearBoardSelection();
+      const isSamePiece = selectedPieceId === id;
+      selectedPieceId = id;
+      selectedRotated = isSamePiece ? !selectedRotated : true;
+      pieceSelect.value = String(id);
+      renderPieceTray();
+      updateSetupHint(
+        `Rotated Piece ${id}. It is now ${selectedRotated ? "rotated" : "in default orientation"} for placement.`,
+      );
+    });
+
     chip.addEventListener("dragstart", (event) => {
       if (traceIndex !== 0 || isPlaying) {
         event.preventDefault();
@@ -1896,7 +1947,7 @@ function updateSetupHint(message) {
     if (placement) {
       setupHint.textContent =
         message ??
-        `Selected placed Piece ${selectedBoardPieceNumber}. Drag it to a new top-left cell, use arrow keys to nudge it, or press Delete to remove it.`;
+        `Selected placed Piece ${selectedBoardPieceNumber}. Drag it to a new top-left cell, right-click to rotate it, use arrow keys to nudge it, or press Delete to remove it.`;
       return;
     }
   }
@@ -1906,7 +1957,23 @@ function updateSetupHint(message) {
   const orientation = selectedRotated ? "rotated" : "default";
   setupHint.textContent =
     message ??
-    `Selected Piece ${selectedPieceId} in ${orientation} orientation (${footprint.height}x${footprint.width}). Click or drop on a top-left board cell to place it. Click a placed piece to select it for moving.`;
+    `Selected Piece ${selectedPieceId} in ${orientation} orientation (${footprint.height}x${footprint.width}). Click or drop on a top-left board cell to place it, right-click to rotate it, or click a placed piece to select it for moving.`;
+}
+
+function syncPlaybackButtons() {
+  showStepsBtn.classList.remove("control-active");
+  pauseBtn.classList.remove("control-active");
+
+  if (!playbackTouched) {
+    return;
+  }
+
+  if (isPlaying) {
+    showStepsBtn.classList.add("control-active");
+    return;
+  }
+
+  pauseBtn.classList.add("control-active");
 }
 
 function refreshSetupUI(message) {
@@ -2073,6 +2140,7 @@ function playNextStep() {
     isPlaying = false;
     speedText.textContent = solutionFound ? "Solved" : "Paused";
     showStepsBtn.textContent = "Replay DFS Steps";
+    syncPlaybackButtons();
     return;
   }
 
@@ -2108,6 +2176,7 @@ function startPlayback() {
   if (isPlaying) {
     return;
   }
+  playbackTouched = true;
   isPlaying = true;
   clearBoardSelection();
   syncBoard();
@@ -2115,6 +2184,7 @@ function startPlayback() {
   modeText.textContent = "Mode: Playback";
   showStepsBtn.textContent =
     traceIndex === 0 ? "Playing DFS Steps" : "Resume DFS Steps";
+  syncPlaybackButtons();
   playNextStep();
 }
 
@@ -2125,12 +2195,14 @@ function pausePlayback() {
   showStepsBtn.textContent =
     traceIndex === 0 ? "Show DFS Steps" : "Resume DFS Steps";
   modeText.textContent = "Mode: Setup";
+  syncPlaybackButtons();
 }
 
 function resetPlayback() {
   pausePlayback();
   traceIndex = 0;
   solutionFound = false;
+  playbackTouched = false;
   restoreBaselineBoard();
   timeline.value = 0;
   stepCounter.textContent = `0 / ${trace.length}`;
@@ -2139,12 +2211,13 @@ function resetPlayback() {
   depthBadge.textContent = "Depth 0";
   eventTitle.textContent = "Ready to replay";
   eventDescription.textContent =
-    "Press the button to animate the DFS search from the current setup board.";
+    'Press the "Resume DFS Steps" button to animate the DFS search from the current setup board.';
   pieceMeta.textContent = "-";
   positionMeta.textContent = "-";
   footprintMeta.textContent = "-";
   placedMeta.textContent = `${traceBaseline.placements.length} / ${PUZZLE.pieces.length}`;
   renderLog(-1);
+  syncPlaybackButtons();
 }
 
 function loadTrace() {
@@ -2387,7 +2460,7 @@ function handleBoardClick(event) {
 
     selectedBoardPieceNumber = pieceNumber;
     updateSetupHint(
-      `Selected placed Piece ${pieceNumber}. Drag it, use arrow keys to move it, or click it again to remove it.`,
+      `Selected placed Piece ${pieceNumber}. Drag it, right-click to rotate it, use arrow keys to move it, or click it again to remove it.`,
     );
     syncBoard();
     boardElement.focus();
@@ -2396,6 +2469,44 @@ function handleBoardClick(event) {
 
   clearBoardSelection();
   tryPlaceSelectedPiece(row, col);
+}
+
+function handleBoardContextMenu(event) {
+  if (isPlaying) {
+    event.preventDefault();
+    return;
+  }
+
+  if (traceIndex !== 0) {
+    event.preventDefault();
+    updateSetupHint("Reset the playback before editing the board setup.");
+    return;
+  }
+
+  const row = Number(event.currentTarget.dataset.row);
+  const col = Number(event.currentTarget.dataset.col);
+  const existingPlacement = getPlacementForCell(setupState, row, col);
+  if (!existingPlacement) {
+    return;
+  }
+
+  event.preventDefault();
+  const pieceNumber = Math.abs(existingPlacement.id);
+  if (!rotatePlacedPiece(setupState, pieceNumber)) {
+    selectedBoardPieceNumber = pieceNumber;
+    syncBoard();
+    updateSetupHint(
+      `Piece ${pieceNumber} cannot rotate in place from (${existingPlacement.row}, ${existingPlacement.col}).`,
+    );
+    return;
+  }
+
+  selectedBoardPieceNumber = pieceNumber;
+  usingCustomSetup = true;
+  traceBaseline = cloneSetupState(setupState);
+  refreshSetupUI(
+    `Rotated placed Piece ${pieceNumber} at (${existingPlacement.row}, ${existingPlacement.col}).`,
+  );
 }
 
 function handleBoardDragOver(event) {
@@ -2499,6 +2610,40 @@ function handleBoardDragEnd() {
   updateSetupHint();
 }
 
+function clearBoardSelectionState(message) {
+  if (selectedBoardPieceNumber === null) {
+    return;
+  }
+
+  clearBoardSelection();
+  syncBoard();
+  updateSetupHint(message ?? "Piece selection cleared.");
+}
+
+function handleDocumentPointerDown(event) {
+  if (selectedBoardPieceNumber === null) {
+    return;
+  }
+
+  if (boardElement.contains(event.target)) {
+    return;
+  }
+
+  clearBoardSelectionState();
+}
+
+function handleDocumentClick(event) {
+  if (selectedBoardPieceNumber === null) {
+    return;
+  }
+
+  if (boardElement.contains(event.target)) {
+    return;
+  }
+
+  clearBoardSelectionState();
+}
+
 function handleBoardKeydown(event) {
   if (traceIndex !== 0 || isPlaying || selectedBoardPieceNumber === null) {
     return;
@@ -2531,9 +2676,7 @@ function handleBoardKeydown(event) {
   }
 
   if (event.key === "Escape") {
-    clearBoardSelection();
-    syncBoard();
-    updateSetupHint("Piece selection cleared.");
+    clearBoardSelectionState();
   }
 }
 
@@ -2582,6 +2725,8 @@ function bindEvents() {
   });
 
   boardElement.addEventListener("keydown", handleBoardKeydown);
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
+  document.addEventListener("click", handleDocumentClick);
 }
 
 function init() {
@@ -2594,9 +2739,10 @@ function init() {
   statusText.textContent = `Trace computed (${solverStats.attempts.toLocaleString()} attempts)`;
   eventTitle.textContent = "Ready to replay";
   eventDescription.textContent =
-    "Place pieces manually, or press the button to animate the condensed DFS search from the current board.";
+    'Place pieces manually, or press the "Show DFS Steps" button to animate the condensed DFS search from the current board.';
   refreshSetupUI();
   renderLog(-1);
+  syncPlaybackButtons();
   bindEvents();
 }
 
