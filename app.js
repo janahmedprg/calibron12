@@ -1470,7 +1470,6 @@ const pieceTray = document.getElementById("pieceTray");
 const pieceSelect = document.getElementById("pieceSelect");
 const rotateBtn = document.getElementById("rotateBtn");
 const clearSetupBtn = document.getElementById("clearSetupBtn");
-const setupHint = document.getElementById("setupHint");
 const speedButtons = [...document.querySelectorAll("#speedGrid button")];
 
 const boardState = Array.from({ length: PUZZLE.height }, () =>
@@ -1942,22 +1941,7 @@ function renderPieceTray() {
 }
 
 function updateSetupHint(message) {
-  if (selectedBoardPieceNumber !== null) {
-    const placement = getPlacementByPiece(setupState, selectedBoardPieceNumber);
-    if (placement) {
-      setupHint.textContent =
-        message ??
-        `Selected placed Piece ${selectedBoardPieceNumber}. Drag it to a new top-left cell, right-click to rotate it, use arrow keys to nudge it, or press Delete to remove it.`;
-      return;
-    }
-  }
-  const footprint = getFootprint(
-    selectedRotated ? -selectedPieceId : selectedPieceId,
-  );
-  const orientation = selectedRotated ? "rotated" : "default";
-  setupHint.textContent =
-    message ??
-    `Selected Piece ${selectedPieceId} in ${orientation} orientation (${footprint.height}x${footprint.width}). Click or drop on a top-left board cell to place it, right-click to rotate it, or click a placed piece to select it for moving.`;
+  void message;
 }
 
 function syncPlaybackButtons() {

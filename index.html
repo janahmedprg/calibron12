@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Calibron 12 Solver Visualizer</title>
+    <title>Calibron 12 Puzzle</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,6 +15,7 @@
   </head>
   <body>
     <div class="page-shell">
+      <h1 class="page-title">Calibron 12 Puzzle</h1>
       <main class="layout">
         <div class="board-column">
           <section class="board-section panel">
@@ -45,13 +46,6 @@
               class="piece-tray"
               aria-label="Available puzzle pieces"
             ></div>
-            <ul class="setup-tips">
-              <li>Click a piece, then click the board to place it.</li>
-              <li>Drag a piece from the tray and drop it on the board.</li>
-              <li>Right-click a piece to rotate it.</li>
-              <li>Use the arrow keys to move a selected placed piece.</li>
-              <li>Press Delete to remove a selected placed piece.</li>
-            </ul>
             <div class="setup-controls">
               <label class="setup-field">
                 <span class="meta-label">Piece</span>
@@ -60,11 +54,14 @@
               <button id="rotateBtn">Rotate Piece</button>
               <button id="clearSetupBtn">Clear Setup</button>
             </div>
-            <p id="setupHint" class="helper-text">
-              Pick a remaining piece, click or drag it onto a top-left board
-              cell to place it, right-click to rotate it, and click away to
-              clear a placed-piece selection.
-            </p>
+            <h3>How to place pieces:</h3>
+            <ul class="setup-tips">
+              <li>Click a piece, then click the board to place it.</li>
+              <li>Drag a piece from the tray and drop it on the board.</li>
+              <li>Right-click a piece to rotate it.</li>
+              <li>Use the arrow keys to move a selected placed piece.</li>
+              <li>Press Delete to remove a selected placed piece.</li>
+            </ul>
           </section>
         </div>
 

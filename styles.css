@@ -60,9 +60,16 @@ input {
   color: var(--muted);
 }
 
+h1,
 h2,
 p {
   margin: 0;
+}
+
+.page-title {
+  margin-bottom: 18px;
+  font-size: clamp(2rem, 3vw, 2.8rem);
+  line-height: 1;
 }
 
 .hero-panel {
